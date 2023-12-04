@@ -3,7 +3,7 @@ import { IOrder, Order } from '../models/Order';
 
 interface IParams {
   action: EAction;
-  filter: Array<IFilterItem>;
+  filter: Array<IFilterItem> | null | undefined;
   sort: ISortItem | null;
 }
 
@@ -44,17 +44,24 @@ const keyList: Array<string> = ["status", "orderNumber", "timestamp"];
 
 async function all(context: Context<any>) {
   const body: IParams = context.body;
+
   const filters = body.filter;
 
   // Validate each item in the filter
-  filters.forEach((item) => {
-    if (!keyList.includes(item.key)) {
-      throw new Error("Invalid key in filter");
-    }
-  });
+  if (filters !== null && filters !== undefined) {
+    filters.forEach((item) => {
+      if (!keyList.includes(item.key)) {
+        throw new Error("Invalid key in filter");
+      }
+    });
+  }
 
   // Get all orders
   let orders = await Order.find();
+
+  if (filters === null || filters === undefined) {
+    return orders;
+  }
 
   // Filter orders
   filters.forEach((filter: IFilterItem) => {
