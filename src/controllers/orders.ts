@@ -4,7 +4,7 @@ import { IOrder, Order } from '../models/Order';
 interface IParams {
   action: EAction;
   filter: Array<IFilterItem> | null | undefined;
-  sort: ISortItem | null;
+  sort: ISortItem | null | undefined;
 }
 
 enum EAction {
@@ -46,6 +46,7 @@ async function all(context: Context<any>) {
   const body: IParams = context.body;
 
   const filters = body.filter;
+  const sort = body.sort;
 
   // Validate each item in the filter
   if (filters !== null && filters !== undefined) {
@@ -59,51 +60,47 @@ async function all(context: Context<any>) {
   // Get all orders
   let orders = await Order.find();
 
-  if (filters === null || filters === undefined) {
-    return orders;
+  // Filter orders
+  if (filters !== null && filters !== undefined) {
+    filters.forEach((filter: IFilterItem) => {
+      if(!isKeyOfOrder(filter.key) || filter.key === null) {
+        throw new Error("Invalid key in filter");
+      }
+
+      const key = filter.key;
+      const value = filter.value || "";
+
+      switch (filter.query) {
+        case EQueries.IsEqual: {
+          orders = orders.filter((order) => order[key] === value);
+        } break;
+
+        case EQueries.Before: {
+          orders = orders.filter((order) => new Date(order[key]) < new Date(value));
+        } break;
+
+        case EQueries.After: {
+          orders = orders.filter((order) => new Date(order[key]) > new Date(value));
+        } break;
+
+        case EQueries.SameDate: {
+          orders = orders.filter((order) => {
+            return new Date(order[key]).toISOString().split('T')[0] === new Date(value).toISOString().split('T')[0];
+          });
+        } break;
+
+        case EQueries.SameDateTime: {
+          orders = orders.filter((order) => new Date(order[key]).toISOString() === new Date(value).toISOString());
+        } break;
+
+        default: {
+          orders = [];
+        } break;
+      }
+    });
   }
 
-  // Filter orders
-  filters.forEach((filter: IFilterItem) => {
-    if(!isKeyOfOrder(filter.key) || filter.key === null) {
-      throw new Error("Invalid key in filter");
-    }
-
-    const key = filter.key;
-    const value = filter.value || "";
-
-    switch (filter.query) {
-      case EQueries.IsEqual: {
-        orders = orders.filter((order) => order[key] === value);
-      } break;
-
-      case EQueries.Before: {
-        orders = orders.filter((order) => new Date(order[key]) < new Date(value));
-      } break;
-
-      case EQueries.After: {
-        orders = orders.filter((order) => new Date(order[key]) > new Date(value));
-      } break;
-
-      case EQueries.SameDate: {
-        orders = orders.filter((order) => {
-          return new Date(order[key]).toISOString().split('T')[0] === new Date(value).toISOString().split('T')[0];
-        });
-      } break;
-
-      case EQueries.SameDateTime: {
-        orders = orders.filter((order) => new Date(order[key]).toISOString() === new Date(value).toISOString());
-      } break;
-
-      default: {
-        orders = [];
-      } break;
-    }
-  });
-
-  if (body.sort !== null) {
-    const sort = body.sort;
-
+  if (sort !== null && sort !== undefined) {
     if(!isKeyOfOrder(sort.key) || !keyList.includes(sort.key)) {
       throw new Error("Invalid key in sort");
     }
