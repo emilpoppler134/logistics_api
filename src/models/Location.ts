@@ -2,8 +2,8 @@ import { Schema, model, Types } from 'mongoose';
 
 export interface ILocation {
   id: Types.ObjectId;
-  quantity: Number;
-  location: Number;
+  quantity: number;
+  location: number;
   storage: Types.ObjectId;
 }
 

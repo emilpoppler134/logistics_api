@@ -5,9 +5,11 @@ import { PORT, DATABASE_USERNAME, DATABASE_PASSWORD, DATABASE_HOST, DATABASE_NAM
 await connect(`mongodb+srv://${DATABASE_USERNAME}:${DATABASE_PASSWORD}@${DATABASE_HOST}/${DATABASE_NAME}`);
 
 import orderRoutes from './routes/orderRoutes';
+import employeeRoutes from './routes/employeeRoutes';
 
 const server = new Elysia();
 
-server.use(orderRoutes);
+server.group("/orders", app => app.use(orderRoutes));
+server.group("/employees", app => app.use(employeeRoutes));
 
 server.listen(PORT, () => {console.log(`Listening on http://localhost:${PORT}/`)});

@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia';
-import controller from '../controllers/orders';
+import controller from '../controllers/employees';
 
 const router = new Elysia();
 

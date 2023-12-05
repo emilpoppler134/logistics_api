@@ -7,7 +7,7 @@ export enum ERole {
 
 export interface IEmployee {
   id: Types.ObjectId;
-  name: String;
+  name: string;
   role: ERole;
   schedule: Array<IShift>;
 }

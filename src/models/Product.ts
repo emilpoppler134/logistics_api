@@ -2,9 +2,9 @@ import { Schema, model, Types } from 'mongoose';
 
 export interface IProduct {
   id: Types.ObjectId;
-  name: String;
-  price: Number;
-  weight: Number;
+  name: string;
+  price: number;
+  weight: number;
   location: Types.ObjectId;
 }
 

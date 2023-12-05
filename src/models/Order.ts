@@ -10,7 +10,7 @@ enum EStatus {
 
 export interface IOrder {
   id: Types.ObjectId;
-  orderNumber: Number;
+  orderNumber: number;
   products: Array<IProduct>;
   picker: Types.ObjectId;
   driver: Types.ObjectId | null;
@@ -18,9 +18,9 @@ export interface IOrder {
   timestamp: Date;
 }
 
-interface IProduct {
+export interface IProduct {
   id: Types.ObjectId;
-  amount: Number;
+  amount: number;
 }
 
 const orderSchema = new Schema<IOrder>(
@@ -53,7 +53,7 @@ const orderSchema = new Schema<IOrder>(
     },
     driver: {
       type: Schema.Types.ObjectId,
-      required: true,
+      required: false,
       default: () => null,
       validate: {
         validator: async (v: Types.ObjectId | null) => {
