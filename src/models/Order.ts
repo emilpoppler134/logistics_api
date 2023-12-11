@@ -2,8 +2,8 @@ import { Schema, model, Types } from 'mongoose';
 import { Employee, ERole } from './Employee';
 
 enum EStatus {
-  OrderPlaced = "Order placed",
-  SearchingDriver = "Searching driver",
+  OrderPlaced = "OrderPlaced",
+  SearchingDriver = "SearchingDriver",
   Delivered = "Delivered",
   Done = "Done"
 }
@@ -11,15 +11,15 @@ enum EStatus {
 export interface IOrder {
   id: Types.ObjectId;
   orderNumber: number;
-  products: Array<IProduct>;
+  products: Array<ILineItem>;
   picker: Types.ObjectId;
   driver: Types.ObjectId | null;
   status: EStatus;
   timestamp: Date;
 }
 
-export interface IProduct {
-  id: Types.ObjectId;
+export interface ILineItem {
+  product: Types.ObjectId;
   amount: number;
 }
 
@@ -31,9 +31,10 @@ const orderSchema = new Schema<IOrder>(
     },
     products: [
       {
-        id: {
+        product: {
           type: Schema.Types.ObjectId,
-          required: true
+          required: true,
+          ref: 'Product'
         },
         amount: {
           type: Number,

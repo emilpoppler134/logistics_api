@@ -1,12 +1,24 @@
 import { Employee } from '../models/Employee';
-import { IFilterItem, EQueries, ISortItem, ESort } from '../lib/types';
+import { IFilterItem, ISortItem, EQueries, ESortKeys, ESortType } from '../lib/types';
 import { Order } from '../models/Order';
 import { Product } from '../models/Product';
 import { Types } from 'mongoose';
 
 import type { Context } from 'elysia';
-import type { IOrder, IProduct } from '../models/Order';
+import type { IOrder, ILineItem } from '../models/Order';
+import type { IProduct } from '../models/Product';
 
+// Detailed Line Item with full product details
+interface IDetailedLineItem extends Omit<ILineItem, 'product'> {
+  product: IProduct;
+}
+
+// Order structure with detailed line items
+interface IOrderDetailed extends Omit<IOrder, 'products'> {
+  products: Array<IDetailedLineItem>;
+}
+
+// Create params
 interface ICreateParams {
   products: Array<IProductParams>;
 }
@@ -21,7 +33,6 @@ function isKeyOfOrder(key: string): key is keyof IOrder {
 }
 
 const filterKeyList: Array<string> = ["status", "orderNumber", "timestamp"];
-const sortKeyList: Array<string> = ["status", "orderNumber", "timestamp"];
 
 async function list() {
   const orders: Array<IOrder> = await Order.find();
@@ -44,71 +55,83 @@ async function get(context: any) {
 }
 
 async function search(context: Context<any>) {
+  // Validate input
   const query = context.query;
 
-  if (query === null || Object.keys(query).length === 0 || query.filter === null || query.sort === null) {
-    throw new Error("Invalid key in query");
+  if (!query || !Object.keys(query).length || query.filter == null) {
+    throw new Error("Invalid query");
   }
 
   try {
     JSON.parse(query.filter);
 
-    if (query.sort !== undefined) {
+    if (query.sort) {
       JSON.parse(query.sort);
     }
   } catch {
     throw new Error("Invalid json in filter query");
   }
-  
-  const filters: Array<IFilterItem> = JSON.parse(query.filter);
-  const sort: ISortItem | undefined = query.sort !== undefined ? JSON.parse(query.sort) : undefined;
 
+  const filters: Array<IFilterItem> = JSON.parse(query.filter);
+  const sort: ISortItem | undefined = query.sort ? JSON.parse(query.sort) : undefined;
+  
   if (!Array.isArray(filters) || filters.length === 0) {
     throw new Error("Filter query is not an array or it is empty");
   }
 
-  // Get all orders
-  let orders = await Order.find();
-  
   // Validate each item in the filter
   filters.forEach((item) => {
-    if (!filterKeyList.includes(item.key)) {
+    if (item.key && !filterKeyList.includes(item.key)) {
       throw new Error("Invalid key in filter");
     }
   });
-  
+
+  // Get all orders
+  let orders: Array<IOrderDetailed> = await Order.find().populate({path: 'products.product', model: 'Product'});
+
   // Filter orders
   filters.forEach((filter: IFilterItem) => {
-    if(!isKeyOfOrder(filter.key) || filter.key === null) {
-      throw new Error("Invalid key in filter");
-    }
-
-    const key = filter.key;
-    const value = filter.value;
-
     switch (filter.query) {
       case EQueries.IsEqual: {
-        orders = orders.filter((order) => order[key] === value);
+        orders = orders.filter((order) => {
+          if(filter.key === undefined || !isKeyOfOrder(filter.key)) {
+            throw new Error("Invalid key in filter");
+          }
+
+          return order[filter.key] === filter.value;
+        });
       } break;
 
       case EQueries.Before: {
-        orders = orders.filter((order) => new Date(order[key]) < new Date(value));
+        orders = orders.filter((order) => new Date(order.timestamp) < new Date(filter.value));
       } break;
 
       case EQueries.After: {
-        orders = orders.filter((order) => new Date(order[key]) > new Date(value));
+        orders = orders.filter((order) => new Date(order.timestamp) > new Date(filter.value));
       } break;
 
       case EQueries.SameDate: {
         orders = orders.filter((order) => {
-          return new Date(order[key]).toISOString().split('T')[0] === new Date(value).toISOString().split('T')[0];
+          const scheduleDate = new Date(order.timestamp);
+          const valueDate = new Date(filter.value);
+
+          return scheduleDate.getFullYear() === valueDate.getFullYear() && scheduleDate.getMonth() === valueDate.getMonth() && scheduleDate.getDate() === valueDate.getDate();
         });
       } break;
 
-      case EQueries.SameDateTime: {
-        orders = orders.filter((order) => new Date(order[key]).toISOString() === new Date(value).toISOString());
+      case EQueries.SameMonth: {
+        orders = orders.filter((order) => {
+          const scheduleDate = new Date(order.timestamp);
+          const valueDate = new Date(filter.value);
+
+          return scheduleDate.getFullYear() === valueDate.getFullYear() && scheduleDate.getMonth() === valueDate.getMonth();
+        });
       } break;
 
+      case EQueries.SameYear: {
+        orders = orders.filter((order) => new Date(order.timestamp).getFullYear() === new Date(filter.value).getFullYear());
+      } break;
+    
       default: {
         orders = [];
       } break;
@@ -116,23 +139,37 @@ async function search(context: Context<any>) {
   });
 
   if (sort !== undefined) {
-    if(!isKeyOfOrder(sort.key) || !sortKeyList.includes(sort.key)) {
-      throw new Error("Invalid key in sort");
-    }
+    switch (sort.key) {
+      case ESortKeys.Timestamp: {
+        switch(sort.type) {
+          case ESortType.Ascending: {
+            orders.sort(function (a, b) {return new Date(a.timestamp).valueOf() - new Date(b.timestamp).valueOf()});
+          } break;
 
-    const key = sort.key;
-    
-    switch (sort.type) {
-      case ESort.Ascending: {
-        orders.sort(function (a, b) {return a[key] - b[key]});
+          case ESortType.Descending: {
+            orders.sort(function (a, b) {return new Date(b.timestamp).valueOf() - new Date(a.timestamp).valueOf()});
+          } break;
+        }
       } break;
-  
-      case ESort.Descending: {
-        orders.sort(function (a, b) {return b[key] - a[key]});
+
+      case ESortKeys.Price: {
+        switch(sort.type) {
+          case ESortType.Ascending: {
+            orders.sort(function (a, b) {
+              return Math.min(...a.products.map(item => item.product.price)) - Math.min(...b.products.map(item => item.product.price));
+            });
+          } break;
+
+          case ESortType.Descending: {
+            orders.sort(function (a, b) {
+              return Math.min(...b.products.map(item => item.product.price)) - Math.min(...a.products.map(item => item.product.price));
+            });
+          } break;
+        }
       } break;
     }
   }
-  
+   
   return orders;
 }
 
@@ -142,11 +179,11 @@ async function create(context: Context<any>) {
   const id = new Types.ObjectId();
   const orderNumber = (await Order.find().sort().limit(1))[0].orderNumber + 1;
 
-  const products: Array<IProduct> = [];
+  const products: Array<ILineItem> = [];
 
   for (const item of body.products) {
     const product = (await Product.find({"name": item.name}))[0];
-    products.push({ id: product.id, amount: item.amount });
+    products.push({ product: product.id, amount: item.amount });
   }
 
   const pickerEmployees = await Employee.find({'role': 'Picker'});

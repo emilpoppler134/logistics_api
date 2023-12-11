@@ -1,5 +1,5 @@
 export interface IFilterItem {
-  key: string;
+  key: string | undefined;
   value: string | number | Date;
   query: EQueries;
 }
@@ -9,15 +9,21 @@ export enum EQueries {
   Before = "Before",
   After = "After",
   SameDate = "SameDate",
-  SameDateTime = "SameDateTime",
+  SameMonth = "SameMonth",
+  SameYear = "SameYear",
 }
 
 export interface ISortItem {
-  key: string;
-  type: ESort;
+  key: ESortKeys;
+  type: ESortType;
 }
 
-export enum ESort {
+export enum ESortType {
   Ascending = "Ascending",
   Descending = "Descending"
+}
+
+export enum ESortKeys {
+  Timestamp = "Timestamp",
+  Price = "Price"
 }
