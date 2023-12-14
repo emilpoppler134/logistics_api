@@ -50,7 +50,8 @@ const orderSchema = new Schema<IOrder>(
           const employee = await Employee.findById(v);
           return (employee && employee.role === ERole.Picker);
         }
-      }
+      },
+      ref: 'Employee'
     },
     driver: {
       type: Schema.Types.ObjectId,
@@ -63,7 +64,8 @@ const orderSchema = new Schema<IOrder>(
           const employee = await Employee.findById(v);
           return (employee && employee.role === ERole.Driver);
         }
-      }
+      },
+      ref: 'Employee'
     },
     status: {
       type: String,

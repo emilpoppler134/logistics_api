@@ -7,15 +7,16 @@ import { Types } from 'mongoose';
 import type { Context } from 'elysia';
 import type { IOrder, ILineItem } from '../models/Order';
 import type { IProduct } from '../models/Product';
+import type { IEmployee } from '../models/Employee';
 
-// Detailed Line Item with full product details
-interface IDetailedLineItem extends Omit<ILineItem, 'product'> {
-  product: IProduct;
+interface IOrderDetailed extends Omit<IOrder, 'products' | 'picker' | 'driver'> {
+  products: Array<IDetailedLineItem>;
+  picker: IEmployee;
+  driver: IEmployee | null;
 }
 
-// Order structure with detailed line items
-interface IOrderDetailed extends Omit<IOrder, 'products'> {
-  products: Array<IDetailedLineItem>;
+interface IDetailedLineItem extends Omit<ILineItem, 'product'> {
+  product: IProduct;
 }
 
 // Create params
@@ -34,27 +35,33 @@ function isKeyOfOrder(key: string): key is keyof IOrder {
 
 const filterKeyList: Array<string> = ["status", "orderNumber", "timestamp"];
 
-async function list() {
-  const orders: Array<IOrder> = await Order.find();
-  return orders;
+async function list(): Promise<Array<IOrderDetailed>> {
+  return await Order.find()
+    .populate({path: 'products.product', model: 'Product'})
+    .populate({ path: 'picker', model: 'Employee' })
+    .populate({ path: 'driver', model: 'Employee' });
 }
 
-async function get(context: any) {
+async function get(context: any): Promise<IOrderDetailed> {
   if (!Types.ObjectId.isValid(context.params.id)) {
     throw new Error("Invalid id");
   }
 
   const id = new Types.ObjectId(context.params.id);
-  const order: IOrder | null = await Order.findById(id);
+
+  const order: IOrderDetailed | null = await Order.findById(id)
+    .populate({path: 'products.product', model: 'Product'})
+    .populate({ path: 'picker', model: 'Employee' })
+    .populate({ path: 'driver', model: 'Employee' });
 
   if (order === null) {
     throw new Error(`No order with id: ${id}`);
   }
 
-  return { status: "OK", data: order };
+  return order;
 }
 
-async function search(context: Context<any>) {
+async function search(context: Context<any>): Promise<Array<IOrderDetailed>> {
   // Validate input
   const query = context.query;
 
@@ -87,7 +94,10 @@ async function search(context: Context<any>) {
   });
 
   // Get all orders
-  let orders: Array<IOrderDetailed> = await Order.find().populate({path: 'products.product', model: 'Product'});
+  let orders: Array<IOrderDetailed> = await Order.find()
+    .populate({path: 'products.product', model: 'Product'})
+    .populate({ path: 'picker', model: 'Employee' })
+    .populate({ path: 'driver', model: 'Employee' });
 
   // Filter orders
   filters.forEach((filter: IFilterItem) => {
