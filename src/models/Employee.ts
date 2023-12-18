@@ -12,7 +12,7 @@ export interface IEmployee {
   schedule: Array<IShift>;
 }
 
-interface IShift {
+export interface IShift {
   start: Date;
   end: Date;
 }

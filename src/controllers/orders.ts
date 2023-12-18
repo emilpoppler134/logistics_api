@@ -34,6 +34,7 @@ function isKeyOfOrder(key: string): key is keyof IOrder {
 }
 
 const filterKeyList: Array<string> = ["status", "orderNumber", "timestamp"];
+const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 async function list(): Promise<Array<IOrderDetailed>> {
   return await Order.find()
@@ -62,7 +63,6 @@ async function get(context: any): Promise<IOrderDetailed> {
 }
 
 async function search(context: Context<any>): Promise<Array<IOrderDetailed>> {
-  // Validate input
   const query = context.query;
 
   if (!query || !Object.keys(query).length || query.filter == null) {
@@ -81,7 +81,126 @@ async function search(context: Context<any>): Promise<Array<IOrderDetailed>> {
 
   const filters: Array<IFilterItem> = JSON.parse(query.filter);
   const sort: ISortItem | undefined = query.sort ? JSON.parse(query.sort) : undefined;
-  
+
+  const orders: Array<IOrderDetailed> = await filterOrders({filters, sort});
+  return orders;
+}
+
+async function sales(context: any): Promise<number> {
+  const month: string = context.params.month.toLowerCase();
+
+  if (!months.map(item => item.toLowerCase()).includes(month)) {
+    throw new Error("Invalid month");
+  }
+
+  const today = new Date();
+
+  const filters: Array<IFilterItem> = [{
+    key: "timestamp",
+    query: EQueries.SameMonth,
+    value: new Date(today.getFullYear() + "-" + months.map(item => item.toLowerCase()).indexOf(month))
+  }];
+
+  const orders: Array<IOrderDetailed> = await filterOrders({filters});
+
+  const totalSum = orders
+    .map(order => {
+      return order.products.reduce((a, b) => a + (b.product.price * b.amount), 0);
+    })
+    .reduce((a, b) => a + b, 0);
+
+  return totalSum;
+}
+
+async function mostExpensive(context: any): Promise<IOrderDetailed | string> {
+  const month: string = context.params.month.toLowerCase();
+
+  if (!months.map(item => item.toLowerCase()).includes(month)) {
+    throw new Error("Invalid month");
+  }
+
+  const today = new Date();
+
+  const filters: Array<IFilterItem> = [{
+    key: "timestamp",
+    query: EQueries.SameMonth,
+    value: new Date(today.getFullYear() + "-" + (months.map(item => item.toLowerCase()).indexOf(month) + 1))
+  }];
+
+  const sort: ISortItem = {
+    key: ESortKeys.Price,
+    type: ESortType.Descending,
+  };
+
+  const orders: Array<IOrderDetailed> = await filterOrders({filters, sort});
+
+  return orders.length > 0 ? orders[0] : "No orders in " + month;
+}
+
+async function status(context: any): Promise<Array<IOrderDetailed> | string> {
+  const status: string = context.params.status;
+
+  const filters: Array<IFilterItem> = [{
+    key: "status",
+    query: EQueries.IsEqual,
+    value: status
+  }];
+
+  const orders: Array<IOrderDetailed> = await filterOrders({filters});
+
+  return orders.length > 0 ? orders : "No order with status " + status;
+}
+
+async function oldest(context: any): Promise<IOrderDetailed | string> {
+  const status: string = context.params.status;
+
+  const filters: Array<IFilterItem> = [{
+    key: "status",
+    query: EQueries.IsEqual,
+    value: status
+  }];
+
+  const sort: ISortItem = {
+    key: ESortKeys.Timestamp,
+    type: ESortType.Ascending,
+  };
+
+  const orders: Array<IOrderDetailed> = await filterOrders({filters, sort});
+
+  return orders.length > 0 ? orders[0] : "No order with status " + status;
+}
+
+async function create(context: Context<any>) {
+  const body: ICreateParams = context.body;
+
+  const id = new Types.ObjectId();
+  const orderNumber = (await Order.find().sort().limit(1))[0].orderNumber + 1;
+
+  const products: Array<ILineItem> = [];
+
+  for (const item of body.products) {
+    const product = (await Product.find({"name": item.name}))[0];
+    products.push({ product: product.id, amount: item.amount });
+  }
+
+  const pickerEmployees = await Employee.find({'role': 'Picker'});
+  const random = Math.floor(Math.random() * pickerEmployees.length);
+  const picker = pickerEmployees[random].id;
+
+  const order = await Order.create({ id, orderNumber, products, picker });
+
+  return { status: "OK", data: order };
+}
+
+async function update(context: Context<any>) {
+
+}
+
+async function remove(context: Context<any>) {
+
+}
+
+async function filterOrders({filters, sort}: {filters: Array<IFilterItem>, sort?: ISortItem | undefined}): Promise<Array<IOrderDetailed>> {
   if (!Array.isArray(filters) || filters.length === 0) {
     throw new Error("Filter query is not an array or it is empty");
   }
@@ -183,34 +302,4 @@ async function search(context: Context<any>): Promise<Array<IOrderDetailed>> {
   return orders;
 }
 
-async function create(context: Context<any>) {
-  const body: ICreateParams = context.body;
-
-  const id = new Types.ObjectId();
-  const orderNumber = (await Order.find().sort().limit(1))[0].orderNumber + 1;
-
-  const products: Array<ILineItem> = [];
-
-  for (const item of body.products) {
-    const product = (await Product.find({"name": item.name}))[0];
-    products.push({ product: product.id, amount: item.amount });
-  }
-
-  const pickerEmployees = await Employee.find({'role': 'Picker'});
-  const random = Math.floor(Math.random() * pickerEmployees.length);
-  const picker = pickerEmployees[random].id;
-
-  const order = await Order.create({ id, orderNumber, products, picker });
-
-  return { status: "OK", data: order };
-}
-
-async function update(context: Context<any>) {
-
-}
-
-async function remove(context: Context<any>) {
-
-}
-
-export default { list, get, search, create, update, remove };
+export default { list, get, search, sales, mostExpensive, status, oldest, create, update, remove };

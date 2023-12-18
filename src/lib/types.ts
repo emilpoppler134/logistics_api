@@ -1,5 +1,5 @@
 export interface IFilterItem {
-  key: string | undefined;
+  key?: string;
   value: string | number | Date;
   query: EQueries;
 }
@@ -11,6 +11,12 @@ export enum EQueries {
   SameDate = "SameDate",
   SameMonth = "SameMonth",
   SameYear = "SameYear",
+  Available = "Available"
+}
+
+export enum EScheduleOption {
+  start = "start",
+  end = "end"
 }
 
 export interface ISortItem {

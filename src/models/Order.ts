@@ -1,7 +1,7 @@
 import { Schema, model, Types } from 'mongoose';
 import { Employee, ERole } from './Employee';
 
-enum EStatus {
+export enum EStatus {
   OrderPlaced = "OrderPlaced",
   SearchingDriver = "SearchingDriver",
   Delivered = "Delivered",
